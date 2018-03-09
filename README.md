@@ -4,7 +4,8 @@
 
 ## 使用方法
 
-安装Python依赖模块： `requests` `websocket-client` （均可用pip安装）
+1. 安装Python依赖模块：`PyExecJS` `requests` `websocket-client` （均可用pip安装）
+2. 安装Node.js依赖模块：`Pako` `bytebuffer`
 
 ### 直接运行
 
@@ -73,7 +74,7 @@ danmaku.stop()
 
 1. 接收并解压所有类型的弹幕消息(结果在函数`_on_message` 的变量`danmaku_str`中)，但仅提取普通的聊天弹幕（type=1），有需要解析其他弹幕消息的请对该变量进行处理。
 2. 通过Wireshark和Fiddler抓包容易分析出通过GET请求获取弹幕服务器地址的过程，但在和弹幕服务器建立WebSocket连接以后，由于送至服务器的数据和传回的弹幕消息均为二进制码，故难直接通过抓包分析通讯过程。此时可打开任意直播页面，找到主页面引用的JS文件，搜索关键字'websocket'可以找到建立连接、发心跳包、解压弹幕消息的过程（在同一个类中）。
-3. 现在WebSocket中传输的json对象已为明文形式，故移除了Python包`PyExecJS` 和node模块`pako` `bytebuffer` 的依赖。
+3. 目前解压消息的过程未能用Python语言复原，故使用`PyExecJS` 执行JS函数，由于bytes无法直接传入，故需解码为字符串再传入，因为bytes经过了zlib压缩故不能使用utf-8解码，具体过程参见源码。
 4. 由于直播平台本身会不断更新客户端和服务器的交互方式，故爬取弹幕的方式也应该随之变化，此项目在你发现时可能已失时效，但希望上述说明能对你有所帮助。
 
 

@@ -1,11 +1,14 @@
 # -*- coding: UTF-8 -*-
 
 import requests
+import logging
 import websocket
 import time
 import math
 import json
+import execjs
 import argparse
+import binascii
 from threading import Thread
 
 
@@ -56,6 +59,7 @@ class PandaTvDanmaku:
         self.__data = response['data']
 
         # 初始化WebSocket连接
+        # ws_url = list(filter(lambda i: '8080' in i, response['data']['chat_addr_list']))[0]
         ws_url = response['data']['chat_addr_list'][0]
         websocket.enableTrace(True)
         ws = websocket.WebSocketApp('wss://' + ws_url)
@@ -102,7 +106,24 @@ class PandaTvDanmaku:
 
         op = int.from_bytes(message[2:4], byteorder='big')
         if op == 3:
-            danmaku_str = message.decode('utf-8', 'ignore')
+            # 从压缩后的JS代码中提取出的解压字节流的过程
+            parse_msg = execjs.compile(
+                """
+                function parseMsg(msg) {
+                    const ByteBuffer = require('bytebuffer');
+                    const pako = require('pako');
+                    var buf = ByteBuffer.fromBase64(msg);
+                    buf.offset = 10 + buf.readShort(4);
+                    var l = pako.inflate(new Uint8Array(buf.toArrayBuffer()));
+                    var new_buf = new ByteBuffer()
+                    new_buf.append(l).flip()
+                    return new_buf.toBase64();
+                }
+                """
+            )
+            # 使用JS代码解压缩弹幕服务器传来的字节流
+            danmaku_base64 = parse_msg.call("parseMsg", str(binascii.b2a_base64(message, newline=False))[2:-1])
+            danmaku_str = str(binascii.a2b_base64(danmaku_base64)[16:].decode('utf-8', 'ignore')).strip()
             # 提取普通的消息弹幕
             try:
                 normal_danmaku = "\"type\":\"1\""
@@ -110,7 +131,7 @@ class PandaTvDanmaku:
                     p1 = danmaku_str.find('{' + normal_danmaku)
                     p2 = danmaku_str.rfind('{' + normal_danmaku)
                     if p1 == p2:
-                        self.__buffer.append(json.loads(danmaku_str[p1:]))
+                        self.__buffer.append(json.loads(danmaku_str))
                     else:
                         p1_end = danmaku_str[p1:p2].rfind('}') + 1
                         danmaku1 = json.loads(danmaku_str[p1:p1_end])
